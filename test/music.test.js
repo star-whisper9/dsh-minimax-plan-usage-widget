@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMotionMusic } from '../src/music.js';
+import { BEAT_MS, BEAT_OFFSET_MS, beatPhase, nextBeat, nearestBeat, releaseBeat, beatPlaybackRate, createMotionMusic } from '../src/music.js';
 
 class AudioStub extends EventTarget {
   currentTime = 0;
@@ -13,6 +13,78 @@ class AudioStub extends EventTarget {
   load() {}
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test('music alone fades to the next beat; a new gesture cancels the tail', async () => {
+  const audio = new AudioStub();
+  audio.volume = .8;
+  let tick, saved;
+  const music = createMotionMusic(audio, {
+    enabled: true, onPosition(value) { saved = value; }, onError() {},
+    schedule(callback) { tick = callback; return 1; }, cancel() { tick = null; },
+  });
+  audio.dispatchEvent(new Event('loadedmetadata'));
+  music.setActive(true);
+  await flush();
+  audio.currentTime = .2;
+  music.finishOnBeat();
+  const end = nextBeat(200);
+  assert.equal(audio.paused, false);
+  audio.currentTime = (200 + end) / 2000;
+  tick();
+  assert.ok(audio.volume > 0 && audio.volume < .8);
+  music.setActive(true);
+  assert.equal(tick, null);
+  assert.equal(audio.volume, .8);
+  music.finishOnBeat();
+  audio.currentTime = (end + 3) / 1000;
+  tick();
+  assert.equal(audio.paused, true);
+  assert.ok(Math.abs(saved * 1000 - end) < 1e-6);
+  assert.equal(audio.volume, .8);
+  music.dispose();
+});
+
+test('release has room to animate near a beat; automatic correction is bounded and wraps correctly', () => {
+  for (let time = 0; time < 5000; time += 7) {
+    const duration = releaseBeat(time) - time;
+    assert.ok(duration >= 180 && duration <= 180 + BEAT_MS + 1e-6);
+    assert.equal(beatPhase(releaseBeat(time)), 0);
+    const rate = beatPlaybackRate(time, 400);
+    assert.ok(rate >= .975 && rate <= 1.025);
+  }
+  assert.equal(beatPlaybackRate(BEAT_OFFSET_MS + BEAT_MS, BEAT_MS), 1);
+  assert.ok(beatPlaybackRate(BEAT_OFFSET_MS + 5, BEAT_MS - 5) > 1);
+  assert.ok(beatPlaybackRate(BEAT_OFFSET_MS + BEAT_MS - 5, 5) < 1);
+});
+
+test('beat grid has stable boundaries, a measured offset, and at most one beat to finish', () => {
+  for (let i = 0; i < 500; i++) {
+    const beat = BEAT_OFFSET_MS + i * BEAT_MS;
+    assert.equal(beatPhase(beat), 0);
+    assert.ok(Math.abs(nextBeat(beat) - beat - BEAT_MS) < 1e-6);
+    const mid = beat + BEAT_MS * .8;
+    assert.ok(nextBeat(mid) > mid && nextBeat(mid) - mid <= BEAT_MS);
+    assert.ok(Math.abs(nearestBeat(mid) - nextBeat(mid)) < 1e-6);
+  }
+});
+
+test('start snaps old progress to the beat and finish persists the exact boundary, not RAF overshoot', async () => {
+  const audio = new AudioStub();
+  let saved;
+  const music = createMotionMusic(audio, { position: 3.17, enabled: true, onPosition(value) { saved = value; }, onError() {} });
+  music.alignStart();
+  audio.dispatchEvent(new Event('loadedmetadata'));
+  assert.ok(Math.abs(audio.currentTime * 1000 - nearestBeat(3170)) < 1e-6);
+  music.setActive(true);
+  await flush();
+  const boundary = nextBeat(music.getTime());
+  audio.currentTime = (boundary + 12) / 1000;
+  music.stopAt(boundary);
+  assert.equal(audio.paused, true);
+  assert.ok(Math.abs(saved * 1000 - boundary) < 1e-6);
+  assert.equal(music.getTime(), null);
+  music.dispose();
+});
 
 test('music restores progress, follows animation, resumes, and resets without losing toggle state', async () => {
   const audio = new AudioStub();

@@ -3,7 +3,7 @@ import {
   hitTestCharacterFrame, resizeFromHandle, settlePosition, widgetHeight,
 } from './geometry.js';
 import { DEFAULT_TEMPLATE, parseTemplate, renderTemplate } from './template.js';
-import { createMotionMusic } from './music.js';
+import { BEAT_MS, releaseBeat, beatPlaybackRate, nearestBeat, createMotionMusic } from './music.js';
 
 const STORAGE_KEY = 'dsh.minimax.plan.widget.v1';
 const INSTANCE_KEY = '__dshMinimaxPlanWidget';
@@ -242,6 +242,10 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   };
   const clearTimer = (id) => { if (id != null) windowRef.clearTimeout(id); };
   let motionActive = false;
+  let beatMotion = null;
+  let beatFrame = null;
+  let fallbackTime = preferences.musicPosition * 1000;
+  let fallbackStamp = windowRef.performance.now();
   const audio = doc.createElement('audio');
   audio.preload = 'metadata';
   const music = createMotionMusic(audio, {
@@ -257,14 +261,61 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     music.setActive(value && !doc.hidden);
   }
 
-  function stopElasticMotion() {
-    for (const animation of elasticAnimations.values()) animation.cancel();
-    elasticAnimations.clear();
-    setMotionActive(false);
+  function motionTime() {
+    const stamp = windowRef.performance.now();
+    const audioTime = music.getTime();
+    if (audioTime != null) fallbackTime = audioTime;
+    else if (!doc.hidden) fallbackTime += stamp - fallbackStamp;
+    fallbackStamp = stamp;
+    return fallbackTime;
   }
 
-  function animateElasticMotion(pressed, automatic = false) {
+  function stopElasticMotion(atBeat = null, fadeMusic = false) {
+    clearTimer(beatFrame);
+    beatFrame = null;
+    beatMotion = null;
+    for (const animation of elasticAnimations.values()) animation.cancel();
+    elasticAnimations.clear();
+    if (fadeMusic) {
+      motionActive = false;
+      music.finishOnBeat();
+    } else if (atBeat != null && music.getTime() != null) {
+      motionActive = false;
+      music.stopAt(atBeat);
+    } else setMotionActive(false);
+  }
+
+  function tickBeat() {
+    beatFrame = null;
+    if (!beatMotion || disposed || doc.hidden) return;
+    if (!beatMotion.automatic) return;
+    // Let the browser interpolate frames. Audio timestamps are only a slow drift reference.
+    const time = music.getTime();
+    const lead = elasticAnimations.get(character);
+    const rate = time == null || lead?.currentTime == null ? 1 : beatPlaybackRate(time, lead.currentTime);
+    for (const animation of elasticAnimations.values()) animation.updatePlaybackRate(rate);
+    beatFrame = windowRef.setTimeout(tickBeat, 250);
+  }
+
+  function finishOnBeat() {
+    if (!beatMotion) { stopElasticMotion(); return; }
+    animateElasticMotion(false, false, true);
+  }
+
+  function animateElasticMotion(pressed, automatic = false, alignRelease = false) {
+    clearTimer(beatFrame);
+    beatFrame = null;
+    beatMotion = null;
+    if (!motionActive) {
+      music.alignStart();
+      fallbackTime = nearestBeat(fallbackTime);
+      fallbackStamp = windowRef.performance.now();
+    }
     setMotionActive(true);
+    const start = motionTime();
+    const stopAt = releaseBeat(start);
+    const duration = automatic ? BEAT_MS : pressed ? 130 : alignRelease ? stopAt - start : 900;
+    if (!pressed) beatMotion = { automatic, stopAt };
     // Animate artwork only: layout, drag coordinates, resize handles and settings stay stable.
     for (const [node, strength] of [[character, 1], [bubble, .7], [dots, .8]]) {
       const current = windowRef.getComputedStyle(node).transform;
@@ -272,13 +323,16 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
       const shape = (x, y) => `scale(${1 + x * strength}, ${1 + y * strength})`;
       const frames = automatic ? [
         { transform: 'scale(1, 1)', offset: 0 },
-        { transform: shape(.24, -.32), offset: .28 },
-        { transform: shape(.24, -.32), offset: .38 },
+        { transform: shape(.24, -.32), offset: .3 },
         { transform: shape(-.17, .24), offset: .65 },
         { transform: 'scale(1, 1)', offset: 1 },
       ] : pressed ? [
         { transform: current },
         { transform: shape(.24, -.32) },
+      ] : alignRelease ? [
+        { transform: current, offset: 0 },
+        { transform: shape(-.17, .24), offset: .4 },
+        { transform: 'scale(1, 1)', offset: 1 },
       ] : [
         { transform: current, offset: 0 },
         { transform: shape(-.17, .24), offset: .17 },
@@ -289,21 +343,21 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
         { transform: 'scale(1, 1)', offset: 1 },
       ];
       const animation = node.animate(frames, {
-        duration: automatic ? 700 : pressed ? 130 : 900,
+        duration,
         iterations: automatic ? Infinity : 1,
         easing: pressed ? 'cubic-bezier(.2, .8, .3, 1)' : 'ease-in-out',
         fill: 'forwards',
       });
       elasticAnimations.set(node, animation);
       if (doc.hidden) animation.pause();
-      if (!automatic) animation.onfinish = () => {
-        if (elasticAnimations.get(node) !== animation) return;
-        if (!pressed) {
-          animation.cancel();
-          elasticAnimations.delete(node);
+      if (!pressed && !automatic && node === character) animation.onfinish = () => {
+        if (elasticAnimations.get(character) === animation) {
+          stopElasticMotion(alignRelease ? stopAt : null, !alignRelease);
         }
-        if ([...elasticAnimations.values()].every(value => value.playState === 'finished')) setMotionActive(false);
       };
+    }
+    if (!pressed) {
+      if (automatic) tickBeat();
     }
   }
 
@@ -619,7 +673,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   on(autoToggle.input, 'change', () => {
     preferences.autoBounce = autoToggle.input.checked;
     if (preferences.autoBounce) animateElasticMotion(false, true);
-    else stopElasticMotion();
+    else finishOnBeat();
     savePreferences();
   });
   on(musicToggle.input, 'change', () => {
@@ -657,7 +711,13 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     savePreferences();
   });
   on(doc, 'visibilitychange', () => {
+    fallbackStamp = windowRef.performance.now();
     music.setActive(motionActive && !doc.hidden);
+    if (doc.hidden && beatFrame != null) {
+      clearTimer(beatFrame);
+      beatFrame = null;
+    }
+    if (!doc.hidden && beatMotion) tickBeat();
     for (const animation of elasticAnimations.values()) {
       if (doc.hidden && animation.playState === 'running') animation.pause();
       else if (!doc.hidden && animation.playState === 'paused') animation.play();
