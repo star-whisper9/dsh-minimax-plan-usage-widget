@@ -227,12 +227,50 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   let opacityTimer = null;
   let eventSource = null;
   let gesture = null;
+  const elasticAnimations = new Map();
   const listeners = [];
   const on = (target, type, handler, options) => {
     target.addEventListener(type, handler, options);
     listeners.push([target, type, handler, options]);
   };
   const clearTimer = (id) => { if (id != null) windowRef.clearTimeout(id); };
+
+  function stopElasticMotion() {
+    for (const animation of elasticAnimations.values()) animation.cancel();
+    elasticAnimations.clear();
+  }
+
+  function animateElasticMotion(pressed) {
+    // Animate artwork only: layout, drag coordinates, resize handles and settings stay stable.
+    for (const [node, strength] of [[character, 1], [bubble, .7], [dots, .8]]) {
+      const current = windowRef.getComputedStyle(node).transform;
+      elasticAnimations.get(node)?.cancel();
+      const shape = (x, y) => `scale(${1 + x * strength}, ${1 + y * strength})`;
+      const frames = pressed ? [
+        { transform: current },
+        { transform: shape(.24, -.32) },
+      ] : [
+        { transform: current, offset: 0 },
+        { transform: shape(-.17, .24), offset: .17 },
+        { transform: shape(.12, -.16), offset: .36 },
+        { transform: shape(-.07, .10), offset: .55 },
+        { transform: shape(.035, -.05), offset: .73 },
+        { transform: shape(-.015, .025), offset: .87 },
+        { transform: 'scale(1, 1)', offset: 1 },
+      ];
+      const animation = node.animate(frames, {
+        duration: pressed ? 130 : 900,
+        easing: pressed ? 'cubic-bezier(.2, .8, .3, 1)' : 'ease-in-out',
+        fill: 'forwards',
+      });
+      elasticAnimations.set(node, animation);
+      if (!pressed) animation.onfinish = () => {
+        if (elasticAnimations.get(node) !== animation) return;
+        animation.cancel();
+        elasticAnimations.delete(node);
+      };
+    }
+  }
 
   function activateOpacity() {
     clearTimer(opacityTimer);
@@ -262,6 +300,10 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     host.style.width = `${position.width}px`;
     host.style.height = `${widgetHeight(position.width)}px`;
     stage.style.transform = `scale(${position.width / DESIGN_WIDTH})`;
+    // Clip only at the viewport, including during exaggerated squash/stretch.
+    // The fixed settings panel is a sibling, so it is neither transformed nor clipped.
+    const scale = position.width / DESIGN_WIDTH;
+    stage.style.clipPath = `inset(${-position.y / scale}px ${-(windowRef.innerWidth - position.x - position.width) / scale}px ${-(windowRef.innerHeight - position.y - widgetHeight(position.width)) / scale}px ${-position.x / scale}px)`;
   }
 
   function savePreferences() {
@@ -360,6 +402,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     disposed = true;
     controller?.abort();
     eventSource?.close();
+    stopElasticMotion();
     for (const id of [pollTimer, revealTimer, hideTimer, settleTimer, opacityTimer]) clearTimer(id);
     if (clockTimer != null) windowRef.clearInterval(clockTimer);
     for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options);
@@ -395,12 +438,13 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     expressionButtons.get(preferences.expression).focus();
   }
 
-  function finishGesture() {
-    if (!gesture) return;
+  function finishGesture(event) {
+    if (!gesture || (event && event.pointerId !== gesture.id)) return;
     const resized = Boolean(gesture.handle);
     const wasMoving = gesture.moved || (resized && position.width !== gesture.start.width);
     gesture = null;
     widget.classList.remove('pressed', 'resizing');
+    if (!resized) animateElasticMotion(false);
     position = resized
       ? clampPosition(position, windowRef.innerWidth, windowRef.innerHeight)
       : settlePosition(position, windowRef.innerWidth, windowRef.innerHeight, preferences.snap);
@@ -415,7 +459,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   }
 
   on(stage, 'pointerdown', (event) => {
-    if (event.button !== 0 || event.target.closest('button') || event.target.closest('.settings-panel')) return;
+    if (gesture || event.button !== 0 || event.target.closest('button') || event.target.closest('.settings-panel')) return;
     activateOpacity();
     clearTimer(revealTimer);
     revealTimer = null;
@@ -434,6 +478,8 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     stage.setPointerCapture(event.pointerId);
     widget.classList.add('pressed');
     if (handle) widget.classList.add('resizing');
+    if (handle) stopElasticMotion();
+    else animateElasticMotion(true);
     event.preventDefault();
   });
   function updateFrameHover(event) {
@@ -523,6 +569,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     savePreferences();
   });
   on(sizeInput, 'input', () => {
+    stopElasticMotion();
     preferences.size = Number(sizeInput.value);
     position.width = fitWidth(preferences.size, windowRef.innerWidth, windowRef.innerHeight);
     position = settlePosition(position, windowRef.innerWidth, windowRef.innerHeight, preferences.snap);
@@ -537,6 +584,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     savePreferences();
   });
   on(resetButton, 'click', () => {
+    stopElasticMotion();
     preferences.size = DESIGN_WIDTH;
     sizeInput.min = '180';
     sizeInput.value = String(DESIGN_WIDTH);

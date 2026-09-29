@@ -30,7 +30,9 @@
 .character-hit { position: absolute; z-index: 2; right: 10px; bottom: 10px; width: 175px; height: 172px; cursor: grab; }
 .character { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 5px 6px #76534324); }
 .widget.pressed .character-hit { cursor: grabbing; }
-.widget.pressed .character { transform: scale(.97); transform-origin: 50% 100%; }
+.character { transform-origin: 50% 100%; }
+.bubble { transform-origin: 65% 100%; }
+.thought-dots { transform-origin: 100% 100%; }
 .controls { position: absolute; z-index: 4; left: 68px; bottom: 11px; display: flex; flex-direction: column; gap: 9px; }
 button { font: inherit; cursor: pointer; }
 .icon-button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 2px solid #e98d79; border-radius: 50%; color: #ba5c50; background: #fffdfb; box-shadow: 0 3px 8px #8151432b; transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
