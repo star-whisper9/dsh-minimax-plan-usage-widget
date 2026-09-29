@@ -50,7 +50,7 @@ button { font: inherit; cursor: pointer; }
 .handle-s { bottom: -10px; left: calc(50% - 9px); cursor: ns-resize; }
 .handle-sw { bottom: -10px; left: -10px; cursor: nesw-resize; }
 .handle-w { top: calc(50% - 9px); left: -10px; cursor: ew-resize; }
-.settings-panel { position: absolute; z-index: 8; right: 0; bottom: 0; width: min(100%, 216px); max-height: 100%; overflow: auto; padding: 12px; border: 2px solid #e9907c; border-radius: 16px; background: #fffdfb; box-shadow: 0 8px 24px #744a4260; font-size: 12px; }
+.settings-panel { position: fixed; z-index: 8; width: min(216px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow: auto; padding: 12px; border: 2px solid #e9907c; border-radius: 16px; background: #fffdfb; box-shadow: 0 8px 24px #744a4260; font-size: 12px; }
 .panel-title { margin-bottom: 8px; color: #b55149; font-size: 15px; font-weight: 750; }
 .field-label { display: block; margin: 8px 0 4px; font-weight: 650; }
 .expression-group { display: flex; gap: 4px; }

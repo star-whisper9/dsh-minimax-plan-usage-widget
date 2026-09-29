@@ -3,7 +3,6 @@ export const DESIGN_HEIGHT = 330;
 export const MIN_WIDTH = 180;
 export const MAX_WIDTH = 440;
 export const EDGE_GAP = 16;
-export const SNAP_DISTANCE = 24;
 export const CHARACTER_RECT = Object.freeze({ x: 115, y: 148, width: 175, height: 172 });
 
 export function fitWidth(width, viewportWidth, viewportHeight) {
@@ -25,11 +24,11 @@ export function clampPosition(position, viewportWidth, viewportHeight) {
   };
 }
 
-export function defaultPosition(viewportWidth, viewportHeight, preferredWidth = DESIGN_WIDTH) {
+export function defaultPosition(viewportWidth, viewportHeight, preferredWidth = DESIGN_WIDTH, snap = false) {
   const width = fitWidth(preferredWidth, viewportWidth, viewportHeight);
   return clampPosition({
-    x: viewportWidth - width - EDGE_GAP,
-    y: viewportHeight - widgetHeight(width) - EDGE_GAP,
+    x: viewportWidth - width - (snap ? 0 : EDGE_GAP),
+    y: viewportHeight - widgetHeight(width) - (snap ? 0 : EDGE_GAP),
     width,
   }, viewportWidth, viewportHeight);
 }
@@ -39,10 +38,13 @@ export function settlePosition(position, viewportWidth, viewportHeight, snap = t
   if (!snap) return next;
   const right = viewportWidth - next.width;
   const bottom = viewportHeight - widgetHeight(next.width);
-  if (next.x <= SNAP_DISTANCE) next.x = 0;
-  else if (right - next.x <= SNAP_DISTANCE) next.x = right;
-  if (next.y <= SNAP_DISTANCE) next.y = 0;
-  else if (bottom - next.y <= SNAP_DISTANCE) next.y = bottom;
+  // Always dock to the nearest edge; preserve position along that edge.
+  const distances = [next.x, right - next.x, next.y, bottom - next.y];
+  const edge = distances.indexOf(Math.min(...distances));
+  if (edge === 0) next.x = 0;
+  else if (edge === 1) next.x = right;
+  else if (edge === 2) next.y = 0;
+  else next.y = bottom;
   return next;
 }
 

@@ -14,11 +14,16 @@ test('template accepts the fixed declarative vocabulary and rejects markup exten
   assert.throws(() => parseTemplate('<row><cell></row></cell>'), /Unmatched closing tag/);
 });
 
-test('position stays within viewport and snaps only near edges', () => {
+test('snap enabled always docks to nearest edge; disabled preserves free position', () => {
   const position = defaultPosition(800, 600);
   assert.deepEqual(position, { x: 484, y: 254, width: 300 });
-  assert.deepEqual(settlePosition({ x: -30, y: 20, width: 300 }, 800, 600), { x: 0, y: 0, width: 300 });
-  assert.equal(settlePosition({ x: 100, y: 100, width: 300 }, 800, 600).x, 100);
+  assert.deepEqual(settlePosition({ x: -30, y: 20, width: 300 }, 800, 600), { x: 0, y: 20, width: 300 });
+  assert.equal(settlePosition({ x: 100, y: 100, width: 300 }, 800, 600).x, 0);
+  assert.equal(settlePosition({ x: 400, y: 130, width: 300 }, 800, 600).x, 500);
+  assert.equal(settlePosition({ x: 240, y: 80, width: 300 }, 800, 600).y, 0);
+  assert.equal(settlePosition({ x: 240, y: 200, width: 300 }, 800, 600).y, 270);
+  assert.deepEqual(settlePosition({ x: 100, y: 100, width: 300 }, 800, 600, false), { x: 100, y: 100, width: 300 });
+  assert.deepEqual(defaultPosition(800, 600, 300, true), { x: 500, y: 270, width: 300 });
   const small = clampPosition({ x: 500, y: 500, width: 300 }, 250, 220);
   assert.ok(small.x >= 0 && small.y >= 0);
   assert.ok(small.x + small.width <= 250);

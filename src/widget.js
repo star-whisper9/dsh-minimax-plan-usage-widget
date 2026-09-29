@@ -194,9 +194,9 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     return { row, input };
   }
   const bubbleToggle = checkboxRow('显示气泡', preferences.bubble);
-  const snapToggle = checkboxRow('贴边吸附', preferences.snap);
+  const snapToggle = checkboxRow('松手吸附到最近边缘', preferences.snap);
   panel.append(bubbleToggle.row, snapToggle.row);
-  const resetButton = element(doc, 'button', 'reset-button', '重置位置');
+  const resetButton = element(doc, 'button', 'reset-button', '重置位置和大小');
   resetButton.type = 'button';
   panel.append(resetButton);
   const errorDetails = element(doc, 'div', 'error-details');
@@ -209,8 +209,8 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
 
   let disposed = false;
   let position = preferences.position
-    ? clampPosition({ ...preferences.position, width: preferences.size }, windowRef.innerWidth, windowRef.innerHeight)
-    : defaultPosition(windowRef.innerWidth, windowRef.innerHeight, preferences.size);
+    ? settlePosition({ ...preferences.position, width: preferences.size }, windowRef.innerWidth, windowRef.innerHeight, preferences.snap)
+    : defaultPosition(windowRef.innerWidth, windowRef.innerHeight, preferences.size, preferences.snap);
   let usage = null;
   let requestError = null;
   let storageError = initialStorageError;
@@ -357,8 +357,23 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     if (restoreFocus) settingsButton.focus();
   }
 
+  function placeSettings() {
+    if (panel.hidden) return;
+    // Pin the panel in viewport coordinates only on open/window resize, never on slider input.
+    panel.style.maxHeight = `${Math.max(1, windowRef.innerHeight - 16)}px`;
+    const anchor = settingsButton.getBoundingClientRect();
+    const width = panel.offsetWidth;
+    const height = panel.offsetHeight;
+    const left = Math.max(8, Math.min(anchor.left, windowRef.innerWidth - width - 8));
+    const top = Math.max(8, Math.min(anchor.bottom - height, windowRef.innerHeight - height - 8));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.maxHeight = `${Math.max(1, windowRef.innerHeight - top - 8)}px`;
+  }
+
   function openSettings() {
     panel.hidden = false;
+    placeSettings();
     settingsButton.setAttribute('aria-expanded', 'true');
     expressionButtons.get(preferences.expression).focus();
   }
@@ -489,15 +504,23 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   on(sizeInput, 'input', () => {
     preferences.size = Number(sizeInput.value);
     position.width = fitWidth(preferences.size, windowRef.innerWidth, windowRef.innerHeight);
-    position = clampPosition(position, windowRef.innerWidth, windowRef.innerHeight);
+    position = settlePosition(position, windowRef.innerWidth, windowRef.innerHeight, preferences.snap);
     showPosition();
     savePreferences();
   });
   on(bubbleToggle.input, 'change', () => { preferences.bubble = bubbleToggle.input.checked; renderUsage(); savePreferences(); });
-  on(snapToggle.input, 'change', () => { preferences.snap = snapToggle.input.checked; savePreferences(); });
-  on(resetButton, 'click', () => {
-    position = defaultPosition(windowRef.innerWidth, windowRef.innerHeight, preferences.size);
+  on(snapToggle.input, 'change', () => {
+    preferences.snap = snapToggle.input.checked;
+    position = settlePosition(position, windowRef.innerWidth, windowRef.innerHeight, preferences.snap);
     showPosition(true);
+    savePreferences();
+  });
+  on(resetButton, 'click', () => {
+    preferences.size = DESIGN_WIDTH;
+    sizeInput.min = '180';
+    sizeInput.value = String(DESIGN_WIDTH);
+    position = defaultPosition(windowRef.innerWidth, windowRef.innerHeight, DESIGN_WIDTH, preferences.snap);
+    showPosition();
     savePreferences();
   });
   on(doc, 'pointerdown', (event) => {
@@ -505,9 +528,10 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     if (!panel.hidden && !path.includes(panel) && !path.includes(settingsButton)) closeSettings(false);
   }, true);
   on(windowRef, 'resize', () => {
-    position = clampPosition({ ...position, width: preferences.size }, windowRef.innerWidth, windowRef.innerHeight);
+    position = settlePosition({ ...position, width: preferences.size }, windowRef.innerWidth, windowRef.innerHeight, preferences.snap);
     // Window shrink must clamp immediately: an animated old position can overflow meanwhile.
     showPosition();
+    placeSettings();
     savePreferences();
   });
   on(doc, 'visibilitychange', () => {
