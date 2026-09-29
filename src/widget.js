@@ -139,9 +139,10 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   const characterHit = element(doc, 'div', 'character-hit');
   characterHit.append(character);
   const controls = element(doc, 'div', 'controls');
-  const settingsButton = iconButton(doc, '打开设置', 'settings-button', 'M12 3.5a2 2 0 0 1 2 1.1l.4.8 1 .2.7-.5a2 2 0 0 1 2.2.1l1.3 1.3a2 2 0 0 1 .1 2.2l-.5.7.2 1 .8.4a2 2 0 0 1 0 4l-.8.4-.2 1 .5.7a2 2 0 0 1-.1 2.2l-1.3 1.3a2 2 0 0 1-2.2.1l-.7-.5-1 .2-.4.8a2 2 0 0 1-4 0l-.4-.8-1-.2-.7.5a2 2 0 0 1-2.2-.1L3.7 18a2 2 0 0 1-.1-2.2l.5-.7-.2-1-.8-.4a2 2 0 0 1 0-4l.8-.4.2-1-.5-.7a2 2 0 0 1 .1-2.2L5 4.1A2 2 0 0 1 7.2 4l.7.5 1-.2.4-.8a2 2 0 0 1 2-1.1ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z');
+  // Hand-drawn curves: gently uneven teeth and off-round center, legible at 21px.
+  const settingsButton = iconButton(doc, '打开设置', 'settings-button', 'M10.1 3.2 Q11.7 2.7 13.2 3.1 L13.8 5.3 Q14.8 5.5 15.6 6.1 L17.7 5.3 Q19 6.1 19.6 7.5 L18.5 9.4 Q19 10.2 19.1 11.2 L21.1 12 Q21.4 13.5 20.7 14.9 L18.5 15.2 Q18.1 16.2 17.4 16.9 L17.8 19 Q16.7 20.1 15.2 20.4 L13.6 18.9 Q12.5 19.2 11.6 19 L10.3 20.8 Q8.7 20.6 7.5 19.7 L7.5 17.5 Q6.6 17 6 16.2 L3.8 16.2 Q2.9 14.9 2.9 13.4 L4.8 12.2 Q4.7 11.1 5.1 10.2 L3.7 8.5 Q4.2 7 5.4 6 L7.5 6.6 Q8.3 5.9 9.3 5.6 Z M12.1 8.7 C16.5 8.5 16.5 15.7 11.9 15.5 C7.7 15.3 7.9 8.5 12.1 8.7');
   settingsButton.setAttribute('aria-expanded', 'false');
-  const refreshButton = iconButton(doc, '刷新用量', 'refresh-button', 'M20 7v5h-5M4 17v-5h5M5.8 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.2-2');
+  const refreshButton = iconButton(doc, '刷新用量', 'refresh-button', 'M4.2 9.4 C4.9 5.7 8.4 3.5 12.2 4.1 C15.9 4.4 18.5 6.8 19.3 10 M15.1 8.2 Q17.1 9.5 19.5 10.4 Q20 7.9 19.9 5.6 M19.7 14.3 C19 18.3 15.3 20.5 11.4 19.8 C7.7 19.4 5.1 17.1 4.6 13.9 M8.8 15.6 Q6.8 14.3 4.4 13.5 Q3.9 15.8 4.1 18.2');
   controls.append(settingsButton, refreshButton);
   const frame = element(doc, 'div', 'resize-frame');
   for (const handle of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
