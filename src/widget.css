@@ -5,7 +5,9 @@
   position: relative; width: 100%; height: 100%; outline: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: #533d3c; user-select: none; -webkit-user-select: none;
+  opacity: .55; transition: opacity .6s ease;
 }
+.widget.is-active, .widget:hover { opacity: 1; transition-duration: .12s; }
 .stage { position: absolute; left: 0; top: 0; width: 300px; height: 330px; transform-origin: top left; touch-action: none; }
 .bubble, .character-hit, .controls, .settings-panel { pointer-events: auto; }
 .bubble { position: absolute; left: 1px; top: 2px; width: 250px; min-height: 180px; max-height: 210px; padding: 22px 20px 20px; z-index: 1; filter: drop-shadow(0 5px 8px #8b5a4b24); }

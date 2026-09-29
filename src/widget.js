@@ -120,7 +120,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   stylesheet.href = new URL('widget.css', base).href;
   shadow.append(stylesheet);
 
-  const widget = element(doc, 'div', 'widget');
+  const widget = element(doc, 'div', 'widget is-active');
   widget.tabIndex = 0;
   widget.setAttribute('aria-label', 'MiniMax Plan 用量小组件，可用方向键移动');
   const stage = element(doc, 'div', 'stage');
@@ -224,6 +224,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   let revealTimer = null;
   let hideTimer = null;
   let settleTimer = null;
+  let opacityTimer = null;
   let eventSource = null;
   let gesture = null;
   const listeners = [];
@@ -232,6 +233,22 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     listeners.push([target, type, handler, options]);
   };
   const clearTimer = (id) => { if (id != null) windowRef.clearTimeout(id); };
+
+  function activateOpacity() {
+    clearTimer(opacityTimer);
+    opacityTimer = null;
+    widget.classList.add('is-active');
+  }
+
+  function scheduleDim() {
+    clearTimer(opacityTimer);
+    opacityTimer = null;
+    if (disposed || gesture || widget.matches(':hover')) return;
+    opacityTimer = windowRef.setTimeout(() => {
+      opacityTimer = null;
+      widget.classList.remove('is-active');
+    }, 3000);
+  }
 
   function showPosition(animate = false) {
     if (animate) {
@@ -343,7 +360,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     disposed = true;
     controller?.abort();
     eventSource?.close();
-    for (const id of [pollTimer, revealTimer, hideTimer, settleTimer]) clearTimer(id);
+    for (const id of [pollTimer, revealTimer, hideTimer, settleTimer, opacityTimer]) clearTimer(id);
     if (clockTimer != null) windowRef.clearInterval(clockTimer);
     for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options);
     host.remove();
@@ -394,10 +411,12 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     }
     showPosition(wasMoving);
     if (wasMoving) savePreferences();
+    scheduleDim();
   }
 
   on(stage, 'pointerdown', (event) => {
     if (event.button !== 0 || event.target.closest('button') || event.target.closest('.settings-panel')) return;
+    activateOpacity();
     clearTimer(revealTimer);
     revealTimer = null;
     clearTimer(hideTimer);
@@ -476,6 +495,8 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
       if (!gesture && !widget.matches(':focus-within')) widget.classList.remove('frame-visible');
     }, 500);
   });
+  on(widget, 'pointerenter', activateOpacity);
+  on(widget, 'pointerleave', scheduleDim);
   on(widget, 'focusin', (event) => {
     if (event.target === widget) widget.classList.add('frame-visible');
     else if (!gesture) widget.classList.remove('frame-visible');
@@ -565,6 +586,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   }
   const instance = { dispose, refresh: () => refresh(true), host };
   windowRef[INSTANCE_KEY] = instance;
+  scheduleDim();
   refresh();
   return instance;
 }
