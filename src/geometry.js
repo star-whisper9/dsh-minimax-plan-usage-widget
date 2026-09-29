@@ -62,27 +62,36 @@ export function hitTestCharacterFrame(x, y, tolerance = 14) {
   return vertical + horizontal || null;
 }
 
-// Scale around the opposite edge/corner of the visible character frame.
+// Keep docked widget edges fixed; otherwise anchor the opposite character edge/corner.
 export function resizeFromHandle(start, handle, dx, dy, viewportWidth, viewportHeight) {
   if (!['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].includes(handle)) {
     throw new Error(`Unknown resize handle: ${handle}`);
   }
   const { x, y, width, height } = CHARACTER_RECT;
   const startScale = start.width / DESIGN_WIDTH;
-  const horizontal = handle.includes('w') ? -dx / width : handle.includes('e') ? dx / width : null;
-  const vertical = handle.includes('n') ? -dy / height : handle.includes('s') ? dy / height : null;
-  const deltaScale = horizontal == null ? vertical : vertical == null ? horizontal
+  const dockLeft = Math.abs(start.x) < .5;
+  const dockRight = Math.abs(start.x + start.width - viewportWidth) < .5;
+  const dockTop = Math.abs(start.y) < .5;
+  const dockBottom = Math.abs(start.y + widgetHeight(start.width) - viewportHeight) < .5;
+  const anchorDesignX = dockLeft ? 0 : dockRight ? DESIGN_WIDTH
+    : handle.includes('w') ? x + width : handle.includes('e') ? x : x + width / 2;
+  const anchorDesignY = dockTop ? 0 : dockBottom ? DESIGN_HEIGHT
+    : handle.includes('n') ? y + height : handle.includes('s') ? y : y + height / 2;
+  // A corner on a docked edge can still resize along its other, free axis.
+  const horizontal = handle.includes('w') && !dockLeft ? -dx / (anchorDesignX - x)
+    : handle.includes('e') && !dockRight ? dx / (x + width - anchorDesignX) : null;
+  const vertical = handle.includes('n') && !dockTop ? -dy / (anchorDesignY - y)
+    : handle.includes('s') && !dockBottom ? dy / (y + height - anchorDesignY) : null;
+  const deltaScale = horizontal == null ? vertical ?? 0 : vertical == null ? horizontal
     : Math.abs(horizontal) >= Math.abs(vertical) ? horizontal : vertical;
-  const anchorDesignX = handle.includes('w') ? x + width : handle.includes('e') ? x : x + width / 2;
-  const anchorDesignY = handle.includes('n') ? y + height : handle.includes('s') ? y : y + height / 2;
   const anchorX = start.x + startScale * anchorDesignX;
   const anchorY = start.y + startScale * anchorDesignY;
   const maxScale = Math.min(
     fitWidth(MAX_WIDTH, viewportWidth, viewportHeight) / DESIGN_WIDTH,
-    anchorX / anchorDesignX,
-    (viewportWidth - anchorX) / (DESIGN_WIDTH - anchorDesignX),
-    anchorY / anchorDesignY,
-    (viewportHeight - anchorY) / (DESIGN_HEIGHT - anchorDesignY),
+    anchorDesignX > 0 ? anchorX / anchorDesignX : Infinity,
+    anchorDesignX < DESIGN_WIDTH ? (viewportWidth - anchorX) / (DESIGN_WIDTH - anchorDesignX) : Infinity,
+    anchorDesignY > 0 ? anchorY / anchorDesignY : Infinity,
+    anchorDesignY < DESIGN_HEIGHT ? (viewportHeight - anchorY) / (DESIGN_HEIGHT - anchorDesignY) : Infinity,
   );
   const minScale = Math.min(MIN_WIDTH / DESIGN_WIDTH, maxScale);
   const scale = Math.min(maxScale, Math.max(minScale, startScale + deltaScale));

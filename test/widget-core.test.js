@@ -75,3 +75,47 @@ test('character-anchored resize stops before the whole widget crosses the viewpo
   const anchor = CHARACTER_RECT.x;
   assert.ok(Math.abs(resized.x + resized.width / 300 * anchor - (start.x + anchor)) < 0.01);
 });
+
+test('five free-direction handles at each docked corner grow and shrink with pinned outer edges', () => {
+  for (const [right, bottom, handles] of [
+    [true, true, ['nw', 'n', 'ne', 'w', 'sw']],
+    [false, true, ['nw', 'n', 'ne', 'e', 'se']],
+    [true, false, ['nw', 'w', 'sw', 's', 'se']],
+    [false, false, ['ne', 'e', 'sw', 's', 'se']],
+  ]) {
+    const start = { x: right ? 500 : 0, y: bottom ? 270 : 0, width: 300 };
+    for (const handle of handles) {
+      for (const distance of [40, -40, 5000]) {
+        const next = resizeFromHandle(start, handle, right ? -distance : distance, bottom ? -distance : distance, 800, 600);
+        assert.ok(Number.isFinite(next.width));
+        assert.ok(distance > 0 ? next.width > start.width : next.width < start.width, handle);
+        assert.ok(Math.abs((right ? next.x + next.width : next.x) - (right ? 800 : 0)) < 1e-8, handle);
+        assert.ok(Math.abs((bottom ? next.y + widgetHeight(next.width) : next.y) - (bottom ? 600 : 0)) < 1e-8, handle);
+        assert.ok(next.x >= -1e-8 && next.y >= -1e-8);
+        assert.ok(next.x + next.width <= 800 + 1e-8 && next.y + widgetHeight(next.width) <= 600 + 1e-8);
+      }
+    }
+  }
+});
+
+test('single-edge docking permits proportional growth without pushing that edge outside', () => {
+  for (const [start, handle, dx, dy, axis, edge] of [
+    [{ x: 500, y: 130, width: 300 }, 'n', 0, -30, 'x', 800],
+    [{ x: 0, y: 130, width: 300 }, 's', 0, 30, 'x', 0],
+    [{ x: 200, y: 0, width: 300 }, 'w', -30, 0, 'y', 0],
+    [{ x: 200, y: 270, width: 300 }, 'e', 30, 0, 'y', 600],
+  ]) {
+    const next = resizeFromHandle(start, handle, dx, dy, 800, 600);
+    assert.ok(next.width > start.width, handle);
+    const extent = axis === 'x' ? next.width : widgetHeight(next.width);
+    assert.ok(Math.abs(next[axis] + (edge ? extent : 0) - edge) < 1e-8, handle);
+  }
+});
+
+test('docked top and left resize edges follow the pointer without scaling the outer margins twice', () => {
+  const start = defaultPosition(800, 600, 300, true);
+  const top = resizeFromHandle(start, 'n', 0, -40, 800, 600);
+  const left = resizeFromHandle(start, 'w', -40, 0, 800, 600);
+  assert.ok(Math.abs(top.y + top.width / 300 * CHARACTER_RECT.y - (start.y + CHARACTER_RECT.y - 40)) < 1e-8);
+  assert.ok(Math.abs(left.x + left.width / 300 * CHARACTER_RECT.x - (start.x + CHARACTER_RECT.x - 40)) < 1e-8);
+});
