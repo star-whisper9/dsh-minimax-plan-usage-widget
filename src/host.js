@@ -4,7 +4,8 @@ import { createUsageService } from './usage.js';
 const PREFIX = '/minimax-plan-widget';
 const rootUrl = new URL('../', import.meta.url);
 const files = new Map([
-  ...['widget.js', 'template.js', 'geometry.js'].map(name => [name, [`src/${name}`, 'text/javascript; charset=utf-8']]),
+  ...['widget.js', 'template.js', 'geometry.js', 'music.js'].map(name => [name, [`src/${name}`, 'text/javascript; charset=utf-8']]),
+  ['assets/q-bounce.m4a', ['assets/q-bounce.m4a', 'audio/mp4']],
   ['widget.css', ['src/widget.css', 'text/css; charset=utf-8']],
   ...['dsh-minimax-chibi', 'dsh-minimax-chibi-blank', 'dsh-minimax-chibi-grin'].map(name => [`assets/${name}.optimized.png`, [`assets/${name}.optimized.png`, 'image/png']]),
 ]);
@@ -61,6 +62,25 @@ export default {
             const file = files.get(name);
             if (!file) { json(res, 404, { error: '资源不存在' }); return; }
             const bytes = await readFile(new URL(file[0], rootUrl));
+            if (name === 'assets/q-bounce.m4a') {
+              res.setHeader('Accept-Ranges', 'bytes');
+              if (req.headers.range != null) {
+                const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+                const start = match?.[1] ? Number(match[1]) : match?.[2] ? Math.max(0, bytes.length - Number(match[2])) : NaN;
+                const end = match?.[1] && match[2] ? Math.min(Number(match[2]), bytes.length - 1) : bytes.length - 1;
+                if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= bytes.length) {
+                  res.writeHead(416, { 'Content-Range': `bytes */${bytes.length}` });
+                  res.end();
+                  return;
+                }
+                res.writeHead(206, {
+                  'Content-Type': file[1], 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff',
+                  'Content-Range': `bytes ${start}-${end}/${bytes.length}`, 'Content-Length': end - start + 1,
+                });
+                res.end(bytes.subarray(start, end + 1));
+                return;
+              }
+            }
             res.writeHead(200, { 'Content-Type': file[1], 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Content-Length': bytes.length });
             res.end(bytes);
           } catch (error) {

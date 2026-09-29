@@ -3,6 +3,7 @@ import {
   hitTestCharacterFrame, resizeFromHandle, settlePosition, widgetHeight,
 } from './geometry.js';
 import { DEFAULT_TEMPLATE, parseTemplate, renderTemplate } from './template.js';
+import { createMotionMusic } from './music.js';
 
 const STORAGE_KEY = 'dsh.minimax.plan.widget.v1';
 const INSTANCE_KEY = '__dshMinimaxPlanWidget';
@@ -45,7 +46,7 @@ function iconButton(doc, label, name, path) {
 }
 
 function loadPreferences(windowRef) {
-  const defaults = { expression: 'normal', size: DESIGN_WIDTH, bubble: true, snap: true, position: null };
+  const defaults = { expression: 'normal', size: DESIGN_WIDTH, bubble: true, snap: true, position: null, autoBounce: false, music: false, musicPosition: 0 };
   try {
     const raw = windowRef.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { preferences: defaults, error: null };
@@ -60,6 +61,9 @@ function loadPreferences(windowRef) {
         expression, size,
         bubble: typeof value.bubble === 'boolean' ? value.bubble : defaults.bubble,
         snap: typeof value.snap === 'boolean' ? value.snap : defaults.snap,
+        autoBounce: value.autoBounce === true,
+        music: value.music === true,
+        musicPosition: Number.isFinite(value.musicPosition) && value.musicPosition >= 0 ? value.musicPosition : 0,
         position,
       },
       error: null,
@@ -195,8 +199,10 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   }
   const bubbleToggle = checkboxRow('显示气泡', preferences.bubble);
   const snapToggle = checkboxRow('松手吸附到最近边缘', preferences.snap);
-  panel.append(bubbleToggle.row, snapToggle.row);
-  const resetButton = element(doc, 'button', 'reset-button', '重置位置和大小');
+  const autoToggle = checkboxRow('自动 Q 弹', preferences.autoBounce);
+  const musicToggle = checkboxRow('Q 弹音乐', preferences.music);
+  panel.append(bubbleToggle.row, snapToggle.row, autoToggle.row, musicToggle.row);
+  const resetButton = element(doc, 'button', 'reset-button', '重置位置、大小和音乐进度');
   resetButton.type = 'button';
   panel.append(resetButton);
   const errorDetails = element(doc, 'div', 'error-details');
@@ -217,6 +223,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   let streamError = null;
   let styleError = null;
   let imageError = null;
+  let musicError = null;
   let loading = true;
   let controller = null;
   let pollTimer = null;
@@ -234,19 +241,42 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     listeners.push([target, type, handler, options]);
   };
   const clearTimer = (id) => { if (id != null) windowRef.clearTimeout(id); };
+  let motionActive = false;
+  const audio = doc.createElement('audio');
+  audio.preload = 'metadata';
+  const music = createMotionMusic(audio, {
+    position: preferences.musicPosition,
+    enabled: preferences.music,
+    onPosition(value) { preferences.musicPosition = value; savePreferences(); },
+    onError(value) { musicError = value; renderStatus(); },
+  });
+  audio.src = new URL('assets/q-bounce.m4a', base).href;
+
+  function setMotionActive(value) {
+    motionActive = value;
+    music.setActive(value && !doc.hidden);
+  }
 
   function stopElasticMotion() {
     for (const animation of elasticAnimations.values()) animation.cancel();
     elasticAnimations.clear();
+    setMotionActive(false);
   }
 
-  function animateElasticMotion(pressed) {
+  function animateElasticMotion(pressed, automatic = false) {
+    setMotionActive(true);
     // Animate artwork only: layout, drag coordinates, resize handles and settings stay stable.
     for (const [node, strength] of [[character, 1], [bubble, .7], [dots, .8]]) {
       const current = windowRef.getComputedStyle(node).transform;
       elasticAnimations.get(node)?.cancel();
       const shape = (x, y) => `scale(${1 + x * strength}, ${1 + y * strength})`;
-      const frames = pressed ? [
+      const frames = automatic ? [
+        { transform: 'scale(1, 1)', offset: 0 },
+        { transform: shape(.24, -.32), offset: .28 },
+        { transform: shape(.24, -.32), offset: .38 },
+        { transform: shape(-.17, .24), offset: .65 },
+        { transform: 'scale(1, 1)', offset: 1 },
+      ] : pressed ? [
         { transform: current },
         { transform: shape(.24, -.32) },
       ] : [
@@ -259,15 +289,20 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
         { transform: 'scale(1, 1)', offset: 1 },
       ];
       const animation = node.animate(frames, {
-        duration: pressed ? 130 : 900,
+        duration: automatic ? 700 : pressed ? 130 : 900,
+        iterations: automatic ? Infinity : 1,
         easing: pressed ? 'cubic-bezier(.2, .8, .3, 1)' : 'ease-in-out',
         fill: 'forwards',
       });
       elasticAnimations.set(node, animation);
-      if (!pressed) animation.onfinish = () => {
+      if (doc.hidden) animation.pause();
+      if (!automatic) animation.onfinish = () => {
         if (elasticAnimations.get(node) !== animation) return;
-        animation.cancel();
-        elasticAnimations.delete(node);
+        if (!pressed) {
+          animation.cancel();
+          elasticAnimations.delete(node);
+        }
+        if ([...elasticAnimations.values()].every(value => value.playState === 'finished')) setMotionActive(false);
       };
     }
   }
@@ -338,7 +373,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   }
 
   function renderStatus() {
-    const errors = [requestError, storageError, streamError, styleError, imageError].filter(Boolean);
+    const errors = [requestError, storageError, streamError, styleError, imageError, musicError].filter(Boolean);
     status.textContent = errors.length ? requestError
       ? (usage?.updatedAt ? '旧数据可能过期 · 查看设置' : '读取失败 · 查看设置')
       : '挂件异常 · 查看设置' : loading ? '正在读取用量…'
@@ -403,6 +438,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     controller?.abort();
     eventSource?.close();
     stopElasticMotion();
+    music.dispose();
     for (const id of [pollTimer, revealTimer, hideTimer, settleTimer, opacityTimer]) clearTimer(id);
     if (clockTimer != null) windowRef.clearInterval(clockTimer);
     for (const [target, type, handler, options] of listeners) target.removeEventListener(type, handler, options);
@@ -444,7 +480,8 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     const wasMoving = gesture.moved || (resized && position.width !== gesture.start.width);
     gesture = null;
     widget.classList.remove('pressed', 'resizing');
-    if (!resized) animateElasticMotion(false);
+    if (preferences.autoBounce) animateElasticMotion(false, true);
+    else if (!resized) animateElasticMotion(false);
     position = resized
       ? clampPosition(position, windowRef.innerWidth, windowRef.innerHeight)
       : settlePosition(position, windowRef.innerWidth, windowRef.innerHeight, preferences.snap);
@@ -479,7 +516,8 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     widget.classList.add('pressed');
     if (handle) widget.classList.add('resizing');
     if (handle) stopElasticMotion();
-    else animateElasticMotion(true);
+    else if (!preferences.autoBounce) animateElasticMotion(true);
+    else music.retry();
     event.preventDefault();
   });
   function updateFrameHover(event) {
@@ -542,6 +580,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     }, 500);
   });
   on(widget, 'pointerenter', activateOpacity);
+  on(widget, 'pointerdown', () => music.retry());
   on(widget, 'pointerleave', scheduleDim);
   on(widget, 'focusin', (event) => {
     if (event.target === widget) widget.classList.add('frame-visible');
@@ -576,6 +615,18 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     showPosition();
     savePreferences();
   });
+  on(sizeInput, 'change', () => { if (preferences.autoBounce) animateElasticMotion(false, true); });
+  on(autoToggle.input, 'change', () => {
+    preferences.autoBounce = autoToggle.input.checked;
+    if (preferences.autoBounce) animateElasticMotion(false, true);
+    else stopElasticMotion();
+    savePreferences();
+  });
+  on(musicToggle.input, 'change', () => {
+    preferences.music = musicToggle.input.checked;
+    music.setEnabled(preferences.music);
+    savePreferences();
+  });
   on(bubbleToggle.input, 'change', () => { preferences.bubble = bubbleToggle.input.checked; renderUsage(); savePreferences(); });
   on(snapToggle.input, 'change', () => {
     preferences.snap = snapToggle.input.checked;
@@ -585,12 +636,14 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   });
   on(resetButton, 'click', () => {
     stopElasticMotion();
+    music.reset();
     preferences.size = DESIGN_WIDTH;
     sizeInput.min = '180';
     sizeInput.value = String(DESIGN_WIDTH);
     position = defaultPosition(windowRef.innerWidth, windowRef.innerHeight, DESIGN_WIDTH, preferences.snap);
     showPosition();
     savePreferences();
+    if (preferences.autoBounce) animateElasticMotion(false, true);
   });
   on(doc, 'pointerdown', (event) => {
     const path = event.composedPath();
@@ -604,6 +657,11 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
     savePreferences();
   });
   on(doc, 'visibilitychange', () => {
+    music.setActive(motionActive && !doc.hidden);
+    for (const animation of elasticAnimations.values()) {
+      if (doc.hidden && animation.playState === 'running') animation.pause();
+      else if (!doc.hidden && animation.playState === 'paused') animation.play();
+    }
     if (doc.hidden) { clearTimer(pollTimer); pollTimer = null; controller?.abort(); }
     else refresh();
   });
@@ -617,6 +675,7 @@ export function mountWidget({ baseUrl = '/minimax-plan-widget/', documentRef = d
   renderUsage();
   renderStatus();
   showPosition();
+  if (preferences.autoBounce) animateElasticMotion(false, true);
   clockTimer = windowRef.setInterval(() => { if (!doc.hidden && usage) renderUsage(); }, 30000);
   if (typeof windowRef.EventSource === 'function') {
     try {

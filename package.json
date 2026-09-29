@@ -6,7 +6,7 @@
   "main": "src/host.js",
   "license": "Apache-2.0",
   "engines": { "node": ">=22" },
-  "files": ["src", "assets/*.optimized.png", "cordis.patch.yml", "LICENSE", "NOTICE"],
-  "scripts": { "test": "node --test test/*.test.js", "check": "node --check src/host.js && node --check src/usage.js && node --check src/widget.js" },
+  "files": ["src", "assets/*.optimized.png", "assets/q-bounce.m4a", "cordis.patch.yml", "LICENSE", "NOTICE"],
+  "scripts": { "test": "node --test test/*.test.js", "check": "node --check src/host.js && node --check src/usage.js && node --check src/widget.js && node --check src/music.js" },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
 }

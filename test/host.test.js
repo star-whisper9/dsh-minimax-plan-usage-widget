@@ -74,9 +74,9 @@ test('routes require host authentication, whitelist resources and dispose cleanl
   assert.match(rows[0].text, /import\('/);
   function response() {
     return Object.assign(new EventEmitter(), {
-      status: 0, body: '', headersSent: false,
-      setHeader() {},
-      writeHead(status) { this.status = status; this.headersSent = true; },
+      status: 0, body: '', headersSent: false, headers: {},
+      setHeader(name, value) { this.headers[name] = value; },
+      writeHead(status, headers) { this.status = status; Object.assign(this.headers, headers); this.headersSent = true; },
       write(chunk) { this.body += chunk; },
       end(chunk = '') { this.body += chunk; this.emit('close'); },
     });
@@ -90,6 +90,16 @@ test('routes require host authentication, whitelist resources and dispose cleanl
   res = response(); await route.handler({ ...req, url: '/minimax-plan-widget/LICENSE' }, res); assert.equal(res.status, 404);
   res = response(); await route.handler(req, res);
   assert.equal(JSON.parse(res.body).ok, false); assert.equal(credentialReads, 1);
+  const audioReq = { ...req, url: '/minimax-plan-widget/assets/q-bounce.m4a' };
+  for (const range of ['bytes=0-15', 'bytes=-16']) {
+    res = response(); await route.handler({ ...audioReq, headers: { range } }, res);
+    assert.equal(res.status, 206);
+    assert.equal(res.headers['Content-Type'], 'audio/mp4');
+    assert.equal(res.headers['Content-Length'], 16);
+    assert.equal(res.headers['Accept-Ranges'], 'bytes');
+  }
+  res = response(); await route.handler({ ...audioReq, headers: { range: 'bytes=999999999-' } }, res);
+  assert.equal(res.status, 416);
   res = response(); await route.handler({ ...req, url: '/minimax-plan-widget/events' }, res);
   assert.equal(res.status, 200);
   cleanup(); assert.equal(removed, true); assert.match(res.body, /event: dispose/);
