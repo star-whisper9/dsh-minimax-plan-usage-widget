@@ -16,13 +16,17 @@
 - **拖拽与吸附**：拖动角色或气泡调整位置，可在松手后吸附到最近的窗口边缘。
 - **等比例缩放**：悬停角色边缘显示缩放框，支持拖拽边框、角点或通过滑条调整大小。
 - **弹性动效**：按压时挤压，松开后回弹；角色、气泡和文字同步变形，设置面板保持稳定。
+- **自动 Q 弹**：可开启循环弹跳，按约 130 BPM 运行；播放音乐时小幅校准速度，保持动画流畅。
+- **Q 弹音乐**：随交互播放。手动回弹保持固定动画，结束后音乐延续至下一拍并淡出；自动模式持续播放，关闭后在拍点收尾。
 - **自动淡出**：鼠标离开 3 秒后逐渐降至 55% 不透明度，悬停时恢复完全不透明。
 
-角色左下角提供**设置**和**手动刷新**按钮。设置支持气泡显隐、贴边吸附开关，以及重置位置和大小。
+角色左下角提供**设置**和**手动刷新**按钮。设置支持气泡显隐、贴边吸附、自动 Q 弹和音乐开关；重置按钮同时重置位置、大小和音乐进度。自动 Q 弹与音乐默认关闭。
 
 <img src="docs/media/settings.png" alt="设置面板：表情、大小、气泡和贴边吸附" width="480">
 
-外观偏好保存在当前浏览器中，不跨浏览器或访问地址同步。
+截图与录屏为早期版本，未展示新增的音乐和自动 Q 弹开关。
+
+外观偏好、开关状态和音乐进度保存在当前浏览器中，不跨浏览器或访问地址同步。页面进入后台时暂停动画和音乐。浏览器可能阻止首次自动播放，按提示点击挂件即可重试。
 
 ## 适用范围
 
@@ -36,10 +40,10 @@
 
 ### Release 安装包（推荐）
 
-从 [Releases](https://github.com/star-whisper9/dsh-minimax-plan-usage-widget/releases) 下载目标版本的 `.tgz` 文件，然后执行以下命令（以 `0.1.0` 为例，请替换为实际文件名）：
+从 [Releases](https://github.com/star-whisper9/dsh-minimax-plan-usage-widget/releases) 下载目标版本的 `.tgz` 文件，然后执行以下命令（以 `0.1.1` 为例，请替换为实际文件名）：
 
 ```sh
-dsh plugin --profile web add ./dsh-minimax-plan-usage-widget-0.1.0.tgz
+dsh plugin --profile web add ./dsh-minimax-plan-usage-widget-0.1.1.tgz
 ```
 
 此方式不需要克隆源码或执行构建。本项目暂不通过 npm registry 发布。
@@ -85,5 +89,7 @@ dsh plugin --profile web remove dsh-minimax-plan-usage-widget
 设计参考 [MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)。本项目围绕 MiniMax Token Plan 独立实现，不包含参考项目的角色图片或音频。
 
 角色素材由 AI 生成并经人工处理；气泡使用 SVG 绘制，文字使用 HTML 渲染。
+
+Q 弹音乐提取自 [Bilibili 视频 BV1hXbN6VEKV](https://www.bilibili.com/video/BV1hXbN6VEKV/)，音频权利不包含在本项目的 Apache-2.0 许可中，详见 [NOTICE](NOTICE)。
 
 项目采用 [Apache-2.0](LICENSE) 许可，相关声明见 [NOTICE](NOTICE)。MiniMax 名称、标识及基础角色形象的相关权利属于各自权利人；本项目与 MiniMax 官方无隶属关系，项目许可不代表获得第三方商标或角色授权。

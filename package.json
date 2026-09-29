@@ -1,6 +1,6 @@
 {
   "name": "dsh-minimax-plan-usage-widget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MiniMax 国内 Token Plan 双窗口用量与 Q 版桌面挂件",
   "type": "module",
   "main": "src/host.js",
