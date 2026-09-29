@@ -1,0 +1,12 @@
+{
+  "name": "dsh-minimax-plan-usage-widget",
+  "version": "0.1.0",
+  "description": "MiniMax 国内 Token Plan 双窗口用量与 Q 版桌面挂件",
+  "type": "module",
+  "main": "src/host.js",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22" },
+  "files": ["src", "assets/*.optimized.png", "cordis.patch.yml", "LICENSE", "NOTICE"],
+  "scripts": { "test": "node --test test/*.test.js", "check": "node --check src/host.js && node --check src/usage.js && node --check src/widget.js" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

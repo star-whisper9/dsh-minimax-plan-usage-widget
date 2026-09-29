@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  CHARACTER_RECT, clampPosition, defaultPosition, hitTestCharacterFrame,
+  resizeFromHandle, settlePosition, widgetHeight,
+} from '../src/geometry.js';
+import { DEFAULT_TEMPLATE, parseTemplate } from '../src/template.js';
+import { validateUsage } from '../src/widget.js';
+
+test('template accepts the fixed declarative vocabulary and rejects markup extensions', () => {
+  assert.equal(parseTemplate(DEFAULT_TEMPLATE).children.filter(node => node.tag).length, 2);
+  assert.throws(() => parseTemplate('<cell onclick="x">bad</cell>'), /Unsupported template tag/);
+  assert.throws(() => parseTemplate('<script>bad</script>'), /Unsupported template tag/);
+  assert.throws(() => parseTemplate('<row><cell></row></cell>'), /Unmatched closing tag/);
+});
+
+test('position stays within viewport and snaps only near edges', () => {
+  const position = defaultPosition(800, 600);
+  assert.deepEqual(position, { x: 484, y: 254, width: 300 });
+  assert.deepEqual(settlePosition({ x: -30, y: 20, width: 300 }, 800, 600), { x: 0, y: 0, width: 300 });
+  assert.equal(settlePosition({ x: 100, y: 100, width: 300 }, 800, 600).x, 100);
+  const small = clampPosition({ x: 500, y: 500, width: 300 }, 250, 220);
+  assert.ok(small.x >= 0 && small.y >= 0);
+  assert.ok(small.x + small.width <= 250);
+  assert.ok(small.y + widgetHeight(small.width) <= 220);
+  assert.deepEqual(clampPosition({ x: -100, y: 900, width: 300 }, 800, 600), { x: 0, y: 270, width: 300 });
+});
+
+test('failed API response retains valid cached windows for stale display', () => {
+  const cached = {
+    ok: false, updatedAt: '2026-09-29T01:00:00.000Z', error: '查询超时',
+    windows: { fiveHour: { usedPercent: 42, resetAt: null }, weekly: null },
+  };
+  assert.equal(validateUsage(cached), cached);
+  assert.throws(() => validateUsage({ ...cached, windows: { fiveHour: { usedPercent: 150 }, weekly: null } }), /百分比无效/);
+});
+
+test('character frame border and endpoints choose the nearest resize edge', () => {
+  assert.equal(hitTestCharacterFrame(CHARACTER_RECT.x, 230), 'w');
+  assert.equal(hitTestCharacterFrame(CHARACTER_RECT.x + CHARACTER_RECT.width, CHARACTER_RECT.y), 'ne');
+  assert.equal(hitTestCharacterFrame(200, 200), null);
+  assert.equal(hitTestCharacterFrame(40, 40), null);
+});
+
+test('each resize handle fixes the opposite character edge or corner', () => {
+  const start = { x: 200, y: 150, width: 300 };
+  const rect = CHARACTER_RECT;
+  for (const handle of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
+    const resized = resizeFromHandle(start, handle, 45, 30, 800, 650);
+    const anchorX = handle.includes('w') ? rect.x + rect.width : handle.includes('e') ? rect.x : rect.x + rect.width / 2;
+    const anchorY = handle.includes('n') ? rect.y + rect.height : handle.includes('s') ? rect.y : rect.y + rect.height / 2;
+    const scale = resized.width / 300;
+    assert.ok(resized.width > 0, handle);
+    assert.ok(resized.x >= 0 && resized.y >= 0, handle);
+    assert.ok(resized.x + resized.width <= 800, handle);
+    assert.ok(resized.y + widgetHeight(resized.width) <= 650, handle);
+    assert.ok(Math.abs(resized.x + scale * anchorX - (start.x + anchorX)) < 0.01, handle);
+    assert.ok(Math.abs(resized.y + scale * anchorY - (start.y + anchorY)) < 0.01, handle);
+    if (handle === 'e') {
+      assert.ok(Math.abs(resized.x + scale * (rect.x + rect.width) - (start.x + rect.x + rect.width + 45)) < 0.01);
+    }
+  }
+});
+
+test('character-anchored resize stops before the whole widget crosses the viewport', () => {
+  const start = defaultPosition(800, 600);
+  const resized = resizeFromHandle(start, 'e', 300, 0, 800, 600);
+  assert.ok(resized.x >= 0 && resized.x + resized.width <= 800);
+  assert.ok(resized.y >= 0 && resized.y + widgetHeight(resized.width) <= 600);
+  const anchor = CHARACTER_RECT.x;
+  assert.ok(Math.abs(resized.x + resized.width / 300 * anchor - (start.x + anchor)) < 0.01);
+});

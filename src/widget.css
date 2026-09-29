@@ -1,0 +1,64 @@
+:host { all: initial; pointer-events: none; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.widget {
+  position: relative; width: 100%; height: 100%; outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #533d3c; user-select: none; -webkit-user-select: none;
+}
+.stage { position: absolute; left: 0; top: 0; width: 300px; height: 330px; transform-origin: top left; touch-action: none; }
+.bubble, .character-hit, .controls, .settings-panel { pointer-events: auto; }
+.bubble { position: absolute; left: 1px; top: 2px; width: 250px; min-height: 180px; max-height: 210px; padding: 22px 20px 20px; z-index: 1; filter: drop-shadow(0 5px 8px #8b5a4b24); }
+.bubble > svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #fffdfb; stroke: #c74e55; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.bubble-text { position: relative; z-index: 1; max-height: 120px; overflow: auto; font-size: 14px; line-height: 1.3; }
+.dsh-center { text-align: center; font-weight: 750; font-size: 18px; margin-bottom: 8px; color: #b55149; }
+.dsh-table { display: grid; gap: 5px; }
+.dsh-row { display: grid; grid-template-columns: 25px 63px minmax(0, 1fr); align-items: center; gap: 3px; min-height: 28px; border-radius: 8px; background: #fff1eb; padding: 4px; }
+.dsh-cell { min-width: 0; white-space: nowrap; font-size: 12px; }
+.dsh-cell:first-child { font-weight: 750; color: #b55149; }
+.dsh-cell:last-child { text-align: right; }
+.status { position: relative; z-index: 2; max-height: 36px; margin-top: 7px; overflow: auto; text-align: center; font-size: 12px; color: #8b7773; white-space: normal; line-height: 1.2; }
+.status.error { color: #a32d2d; font-weight: 650; }
+.bubble-hidden .status { position: absolute; left: 1px; top: 184px; width: 110px; max-height: 52px; margin: 0; padding: 4px; border: 1px solid #c74e55; border-radius: 7px; background: #fffdfb; }
+.bubble-hidden .status:not(.error) { display: none; }
+.thought-dots { position: absolute; z-index: 1; left: 78px; top: 180px; width: 48px; height: 51px; }
+.dot { position: absolute; border: 3.5px solid #c74e55; border-radius: 50%; background: #fffdfb; box-shadow: 0 3px 6px #8b5a4b18; }
+.dot-large { width: 21px; height: 18px; left: 5px; top: 0; }
+.dot-small { width: 13px; height: 12px; left: 28px; top: 29px; }
+.character-hit { position: absolute; z-index: 2; right: 10px; bottom: 10px; width: 175px; height: 172px; cursor: grab; }
+.character { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 5px 6px #76534324); }
+.widget.pressed .character-hit { cursor: grabbing; }
+.widget.pressed .character { transform: scale(.97); transform-origin: 50% 100%; }
+.controls { position: absolute; z-index: 4; left: 68px; bottom: 11px; display: flex; flex-direction: column; gap: 9px; }
+button { font: inherit; cursor: pointer; }
+.icon-button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 2px solid #e98d79; border-radius: 50%; color: #ba5c50; background: #fffdfb; box-shadow: 0 3px 8px #8151432b; transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
+.icon-button:hover { background: #fff0e9; transform: translateY(-2px); box-shadow: 0 5px 10px #81514335; }
+.icon-button:active { transform: scale(.9); }
+.icon-button:focus-visible, .expression-button:focus-visible, .reset-button:focus-visible, input:focus-visible { outline: 3px solid #7d55b8; outline-offset: 2px; }
+.icon-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.refresh-button.loading svg { animation: dsh-spin 1s linear infinite; }
+@keyframes dsh-spin { to { transform: rotate(360deg); } }
+.resize-frame { position: absolute; z-index: 3; left: 115px; top: 148px; width: 175px; height: 172px; border: 2px solid #c74e55; border-radius: 18px; opacity: 0; pointer-events: none; transition: opacity .2s ease; box-shadow: 0 0 0 1px #fff8 inset; }
+.frame-visible .resize-frame, .resizing .resize-frame { opacity: 1; }
+.frame-visible .resize-frame { pointer-events: auto; }
+.handle { position: absolute; display: block; width: 18px; height: 18px; border: 2px solid #c74e55; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px #8151433a; touch-action: none; }
+.handle-nw { top: -10px; left: -10px; cursor: nwse-resize; }
+.handle-n { top: -10px; left: calc(50% - 9px); cursor: ns-resize; }
+.handle-ne { top: -10px; right: -10px; cursor: nesw-resize; }
+.handle-e { top: calc(50% - 9px); right: -10px; cursor: ew-resize; }
+.handle-se { bottom: -10px; right: -10px; cursor: nwse-resize; }
+.handle-s { bottom: -10px; left: calc(50% - 9px); cursor: ns-resize; }
+.handle-sw { bottom: -10px; left: -10px; cursor: nesw-resize; }
+.handle-w { top: calc(50% - 9px); left: -10px; cursor: ew-resize; }
+.settings-panel { position: absolute; z-index: 8; right: 0; bottom: 0; width: min(100%, 216px); max-height: 100%; overflow: auto; padding: 12px; border: 2px solid #e9907c; border-radius: 16px; background: #fffdfb; box-shadow: 0 8px 24px #744a4260; font-size: 12px; }
+.panel-title { margin-bottom: 8px; color: #b55149; font-size: 15px; font-weight: 750; }
+.field-label { display: block; margin: 8px 0 4px; font-weight: 650; }
+.expression-group { display: flex; gap: 4px; }
+.expression-button { flex: 1; min-width: 0; padding: 5px 2px; border: 1px solid #e7ae9c; border-radius: 7px; background: #fff7f1; color: #704a42; font-size: 12px; }
+.expression-button[aria-pressed="true"] { border-color: #c66050; color: #a83f34; background: #ffded2; font-weight: 700; }
+.size-input { display: block; width: 100%; margin: 6px 0; accent-color: #ce6c5b; }
+.toggle-row { display: flex; align-items: center; gap: 7px; margin: 8px 0; cursor: pointer; }
+.toggle-row input { accent-color: #ce6c5b; }
+.reset-button { width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #d88372; border-radius: 8px; background: #fff1e9; color: #9a463b; font-weight: 650; }
+.reset-button:hover { background: #ffdfd2; }
+.error-details { margin-top: 9px; padding-top: 8px; border-top: 1px solid #edc1b4; color: #a32d2d; font-size: 12px; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere; }

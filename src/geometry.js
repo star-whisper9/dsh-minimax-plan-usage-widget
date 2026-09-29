@@ -1,0 +1,92 @@
+export const DESIGN_WIDTH = 300;
+export const DESIGN_HEIGHT = 330;
+export const MIN_WIDTH = 180;
+export const MAX_WIDTH = 440;
+export const EDGE_GAP = 16;
+export const SNAP_DISTANCE = 24;
+export const CHARACTER_RECT = Object.freeze({ x: 115, y: 148, width: 175, height: 172 });
+
+export function fitWidth(width, viewportWidth, viewportHeight) {
+  const available = Math.max(1, Math.min(viewportWidth - 2 * EDGE_GAP, (viewportHeight - 2 * EDGE_GAP) * DESIGN_WIDTH / DESIGN_HEIGHT));
+  return Math.min(MAX_WIDTH, Math.max(1, Math.min(Math.max(MIN_WIDTH, width), available)));
+}
+
+export function widgetHeight(width) {
+  return width * DESIGN_HEIGHT / DESIGN_WIDTH;
+}
+
+export function clampPosition(position, viewportWidth, viewportHeight) {
+  const width = fitWidth(position.width, viewportWidth, viewportHeight);
+  const height = widgetHeight(width);
+  return {
+    x: Math.min(Math.max(0, position.x), Math.max(0, viewportWidth - width)),
+    y: Math.min(Math.max(0, position.y), Math.max(0, viewportHeight - height)),
+    width,
+  };
+}
+
+export function defaultPosition(viewportWidth, viewportHeight, preferredWidth = DESIGN_WIDTH) {
+  const width = fitWidth(preferredWidth, viewportWidth, viewportHeight);
+  return clampPosition({
+    x: viewportWidth - width - EDGE_GAP,
+    y: viewportHeight - widgetHeight(width) - EDGE_GAP,
+    width,
+  }, viewportWidth, viewportHeight);
+}
+
+export function settlePosition(position, viewportWidth, viewportHeight, snap = true) {
+  const next = clampPosition(position, viewportWidth, viewportHeight);
+  if (!snap) return next;
+  const right = viewportWidth - next.width;
+  const bottom = viewportHeight - widgetHeight(next.width);
+  if (next.x <= SNAP_DISTANCE) next.x = 0;
+  else if (right - next.x <= SNAP_DISTANCE) next.x = right;
+  if (next.y <= SNAP_DISTANCE) next.y = 0;
+  else if (bottom - next.y <= SNAP_DISTANCE) next.y = bottom;
+  return next;
+}
+
+export function hitTestCharacterFrame(x, y, tolerance = 14) {
+  const { x: left, y: top, width, height } = CHARACTER_RECT;
+  const right = left + width;
+  const bottom = top + height;
+  if (x < left - tolerance || x > right + tolerance || y < top - tolerance || y > bottom + tolerance) return null;
+  const west = Math.abs(x - left);
+  const east = Math.abs(x - right);
+  const north = Math.abs(y - top);
+  const south = Math.abs(y - bottom);
+  const horizontal = Math.min(west, east) <= tolerance ? west <= east ? 'w' : 'e' : '';
+  const vertical = Math.min(north, south) <= tolerance ? north <= south ? 'n' : 's' : '';
+  return vertical + horizontal || null;
+}
+
+// Scale around the opposite edge/corner of the visible character frame.
+export function resizeFromHandle(start, handle, dx, dy, viewportWidth, viewportHeight) {
+  if (!['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].includes(handle)) {
+    throw new Error(`Unknown resize handle: ${handle}`);
+  }
+  const { x, y, width, height } = CHARACTER_RECT;
+  const startScale = start.width / DESIGN_WIDTH;
+  const horizontal = handle.includes('w') ? -dx / width : handle.includes('e') ? dx / width : null;
+  const vertical = handle.includes('n') ? -dy / height : handle.includes('s') ? dy / height : null;
+  const deltaScale = horizontal == null ? vertical : vertical == null ? horizontal
+    : Math.abs(horizontal) >= Math.abs(vertical) ? horizontal : vertical;
+  const anchorDesignX = handle.includes('w') ? x + width : handle.includes('e') ? x : x + width / 2;
+  const anchorDesignY = handle.includes('n') ? y + height : handle.includes('s') ? y : y + height / 2;
+  const anchorX = start.x + startScale * anchorDesignX;
+  const anchorY = start.y + startScale * anchorDesignY;
+  const maxScale = Math.min(
+    fitWidth(MAX_WIDTH, viewportWidth, viewportHeight) / DESIGN_WIDTH,
+    anchorX / anchorDesignX,
+    (viewportWidth - anchorX) / (DESIGN_WIDTH - anchorDesignX),
+    anchorY / anchorDesignY,
+    (viewportHeight - anchorY) / (DESIGN_HEIGHT - anchorDesignY),
+  );
+  const minScale = Math.min(MIN_WIDTH / DESIGN_WIDTH, maxScale);
+  const scale = Math.min(maxScale, Math.max(minScale, startScale + deltaScale));
+  return {
+    x: anchorX - scale * anchorDesignX,
+    y: anchorY - scale * anchorDesignY,
+    width: scale * DESIGN_WIDTH,
+  };
+}
