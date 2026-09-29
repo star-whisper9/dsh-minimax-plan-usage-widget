@@ -1,7 +1,3 @@
 - insert:
     - id: minimax-plan-usage-widget
       name: dsh-minimax-plan-usage-widget
-      config:
-        # This local installation stores its CN Token Plan key under this ref.
-        # A saved minimax-cn provider record takes precedence.
-        credentialRef: MINIMAX_API_KEY
